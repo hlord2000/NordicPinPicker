@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NRF Pin Planner</title>
+    <style>
+        :root {
+            --primary-color: #0066cc;
+            --secondary-color: #e6f2ff;
+            --border-color: #cccccc;
+            --success-color: #4CAF50;
+            --warning-color: #ff9800;
+            --error-color: #f44336;
+            --disabled-color: #f1f1f1;
+            --text-color: #333333;
+            --light-text: #666666;
+        }
+
+        * {
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background-color: #f9f9f9;
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+
+        h1, h2, h3 {
+            color: var(--primary-color);
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border-radius: 5px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .flex-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+
+        .peripheral-selector {
+            flex: 1;
+            min-width: 300px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            padding: 15px;
+            background-color: white;
+        }
+
+        .chip-display {
+            flex: 1;
+            min-width: 500px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            padding: 15px;
+            background-color: white;
+        }
+
+        .selected-peripherals {
+            flex: 1;
+            min-width: 300px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            padding: 15px;
+            background-color: white;
+        }
+
+        .peripheral-group {
+            margin-bottom: 15px;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+        }
+
+        .peripheral-item {
+            cursor: pointer;
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 4px;
+            transition: background-color 0.2s;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .peripheral-item:hover {
+            background-color: var(--secondary-color);
+        }
+
+        .peripheral-item.disabled {
+            opacity: 0.5;
+            background-color: var(--disabled-color);
+            cursor: not-allowed;
+        }
+
+        .peripheral-item.selected {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .chip-container {
+            position: relative;
+            width: 400px;
+            height: 400px;
+            margin: 0 auto;
+            background-color: #e0e0e0;
+            border-radius: 10px;
+        }
+
+        .pin {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: #cccccc;
+            border: 1px solid #999999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .pin:hover {
+            transform: scale(1.2);
+            z-index: 100;
+        }
+
+        .pin.used {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .pin.clock {
+            background-color: var(--warning-color);
+        }
+
+        .pin.required {
+            background-color: var(--error-color);
+            color: white;
+        }
+
+        .pin.vdd, .pin.vss, .pin.debug {
+            background-color: #999999;
+            color: white;
+        }
+
+        .pin-details {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            min-height: 100px;
+            background-color: #f9f9f9;
+        }
+
+        .selected-list {
+            list-style-type: none;
+            padding: 0;
+        }
+
+        .selected-item {
+            background-color: var(--secondary-color);
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .remove-btn {
+            background-color: var(--error-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 5px 8px;
+            cursor: pointer;
+        }
+
+        .remove-btn:hover {
+            opacity: 0.9;
+        }
+
+        .legend {
+            margin-top: 15px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin-right: 15px;
+        }
+
+        .legend-color {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 5px;
+        }
+
+        .button-group {
+            margin-top: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        button {
+            padding: 10px 15px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #0055aa;
+        }
+
+        button:disabled {
+            background-color: var(--disabled-color);
+            color: var(--light-text);
+            cursor: not-allowed;
+        }
+
+        /* Pin positioning for QFN-48 package */
+        .left-pins .pin, .right-pins .pin, .top-pins .pin, .bottom-pins .pin {
+            position: absolute;
+        }
+
+        .left-pins .pin {
+            left: 10px;
+        }
+
+        .right-pins .pin {
+            right: 10px;
+        }
+
+        .top-pins .pin {
+            top: 10px;
+        }
+
+        .bottom-pins .pin {
+            bottom: 10px;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 8px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+        }
+        
+        .tab-container {
+            margin-bottom: 15px;
+        }
+        
+        .tab {
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            background-color: #f1f1f1;
+            border-radius: 5px 5px 0 0;
+        }
+        
+        .tab button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 10px 15px;
+            transition: 0.3s;
+            color: var(--text-color);
+        }
+        
+        .tab button:hover {
+            background-color: #ddd;
+        }
+        
+        .tab button.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .tabcontent {
+            display: none;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            border-top: none;
+            border-radius: 0 0 5px 5px;
+            animation: fadeEffect 1s;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        @keyframes fadeEffect {
+            from {opacity: 0;}
+            to {opacity: 1;}
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>NRF Pin Planner</h1>
+            <p>Select peripherals and visualize pin assignments for your NRF chip</p>
+        </div>
+
+        <div class="flex-container">
+            <div class="peripheral-selector">
+                <h2>Available Peripherals</h2>
+                <input type="text" id="searchPeripherals" class="search-box" placeholder="Search peripherals...">
+                
+                <div class="tab-container">
+                    <div class="tab">
+                        <button class="tablinks active" onclick="openTab(event, 'SPI')">SPI</button>
+                        <button class="tablinks" onclick="openTab(event, 'I2C')">I2C</button>
+                        <button class="tablinks" onclick="openTab(event, 'UART')">UART</button>
+                        <button class="tablinks" onclick="openTab(event, 'Others')">Others</button>
+                    </div>
+                    
+                    <div id="SPI" class="tabcontent" style="display: block;">
+                        <div class="peripheral-group">
+                            <h3>SPI Peripherals</h3>
+                            <div id="spi-list"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="I2C" class="tabcontent">
+                        <div class="peripheral-group">
+                            <h3>I2C Peripherals</h3>
+                            <div id="i2c-list"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="UART" class="tabcontent">
+                        <div class="peripheral-group">
+                            <h3>UART Peripherals</h3>
+                            <div id="uart-list"></div>
+                        </div>
+                    </div>
+                    
+                    <div id="Others" class="tabcontent">
+                        <div class="peripheral-group">
+                            <h3>Other Peripherals</h3>
+                            <div id="other-list"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chip-display">
+                <h2>QFN-48 Pin Layout</h2>
+                <div class="chip-container">
+                    <div class="left-pins"></div>
+                    <div class="right-pins"></div>
+                    <div class="top-pins"></div>
+                    <div class="bottom-pins"></div>
+                </div>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #cccccc;"></div>
+                        <span>Available</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--primary-color);"></div>
+                        <span>Used</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--warning-color);"></div>
+                        <span>Clock Pin</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: var(--error-color);"></div>
+                        <span>Required</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #999999;"></div>
+                        <span>Power/Debug</span>
+                    </div>
+                </div>
+                <div class="pin-details" id="pinDetails">
+                    <p>Click on a pin to see details...</p>
+                </div>
+            </div>
+
+            <div class="selected-peripherals">
+                <h2>Selected Peripherals</h2>
+                <ul class="selected-list" id="selectedList">
+                    <li class="empty-message">No peripherals selected yet.</li>
+                </ul>
+                <div class="button-group">
+                    <button id="clearAllBtn">Clear All</button>
+                    <button id="exportBtn">Export Configuration</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Data structures
+        const peripherals = {
+            "SPI": [
+                { id: "SPIM/SPIS00", port: "Port 2", pins: "Any pins", notes: "SCLK requires clock pin; 32MHz requires high drive low and high", address: "0x5004A000" },
+                { id: "SPIM/SPIS20", port: "Port 1 or Port 2", pins: "Any pins (P1) or dedicated pins (P2)", notes: "SCLK requires clock pin", address: "0x500C6000" },
+                { id: "SPIM/SPIS21", port: "Port 1 or Port 2", pins: "Any pins (P1) or dedicated pins (P2)", notes: "SCLK requires clock pin", address: "0x500C7000" },
+                { id: "SPIM/SPIS22", port: "Port 1 or Port 2", pins: "Any pins (P1) or dedicated pins (P2)", notes: "SCLK requires clock pin", address: "0x500C8000" },
+                { id: "SPIM/SPIS30", port: "Port 0", pins: "Any pins", notes: "SCLK requires clock pin", address: "0x50104000" }
+            ],
+            "I2C": [
+                { id: "TWIM/TWIS20", port: "Port 1 or Port 2", pins: "Any pins (P1) or dedicated pins (P2)", notes: "SCL requires clock pin", address: "0x500C6000" },
+                { id: "TWIM/TWIS21", port: "Port 1 or Port 2", pins: "Any pins (P1) or dedicated pins (P2)", notes: "SCL requires clock pin", address: "0x500C7000" },
+                { id: "TWIM/TWIS22", port: "Port 1 or Port 2", pins: "Any pins (P1) or dedicated pins (P2)", notes: "SCL requires clock pin", address: "0x500C8000" },
+                { id: "TWIM/TWIS30", port: "Port 0", pins: "Any pins", notes: "SCL requires clock pin", address: "0x50104000" }
+            ],
+            "UART": [
+                { id: "UARTE00", port: "Port 2", pins: "Any pins", notes: "", address: "0x5004A000" },
+                { id: "UARTE20", port: "Port 1 or Port 2", pins: "Any pins (P1) or dedicated pins (P2)", notes: "", address: "0x500C6000" },
+                { id: "UARTE21", port: "Port 1 or Port 2", pins: "Any pins (P1) or dedicated pins (P2)", notes: "", address: "0x500C7000" },
+                { id: "UARTE22", port: "Port 1 or Port 2", pins: "Any pins (P1) or dedicated pins (P2)", notes: "", address: "0x500C8000" },
+                { id: "UARTE30", port: "Port 0", pins: "Any pins", notes: "", address: "0x50104000" }
+            ],
+            "Others": [
+                { id: "PDM20", port: "Port 1", pins: "Any pins", notes: "CLK requires clock pin", address: "0x500D0000" },
+                { id: "PDM21", port: "Port 1", pins: "Any pins", notes: "CLK requires clock pin", address: "0x500D1000" },
+                { id: "PWM20", port: "Port 1", pins: "Any pins", notes: "", address: "0x500D2000" },
+                { id: "PWM21", port: "Port 1", pins: "Any pins", notes: "", address: "0x500D3000" },
+                { id: "PWM22", port: "Port 1", pins: "Any pins", notes: "", address: "0x500D4000" },
+                { id: "I2S20", port: "Port 1", pins: "Any pins", notes: "MCK and SCK require clock pin", address: "0x500DD000" },
+                { id: "NFCT", port: "Port 1", pins: "P1.02 && P1.03", notes: "Requires both specific pins", address: "0x500D6000" },
+                { id: "SAADC", port: "Port 1", pins: "P1.04, P1.05, P1.06, P1.07, P1.11, P1.12, P1.13, P1.14", notes: "Specific pins only", address: "0x500D5000" },
+                { id: "GPIOTE20", port: "Port 1", pins: "Any pins", notes: "", address: "0x500DA000" },
+                { id: "GPIOTE30", port: "Port 0", pins: "Any pins", notes: "", address: "0x5010C000" },
+                { id: "GRTC", port: "Mixed", pins: "(CLKOUT32K/GRTCLFCLKOUT, P0.04), (PWMOUT/GRTCPWM, P0.03), (CLK16M, P1.08)", notes: "Specific pin assignments", address: "0x500E2000" },
+                { id: "QDEC20", port: "Port 1", pins: "Any pins", notes: "", address: "0x500E0000" },
+                { id: "QDEC21", port: "Port 1", pins: "Any pins", notes: "", address: "0x500E1000" }
+            ]
+        };
+
+        // Pin data: number, pin name, is it a clock pin, special function
+        const pinData = [
+            { number: 1, name: "P1.00", isClock: false, port: "P1", index: 0, type: "io", functions: ["XL1", "Digital I/O", "Analog input"] },
+            { number: 2, name: "P1.01", isClock: false, port: "P1", index: 1, type: "io", functions: ["XL2", "Digital I/O", "Analog input"] },
+            { number: 3, name: "P1.02", isClock: false, port: "P1", index: 2, type: "io", functions: ["NFC1", "Digital I/O", "NFC input"] },
+            { number: 4, name: "P1.03", isClock: true, port: "P1", index: 3, type: "io", functions: ["NFC2", "Digital I/O", "NFC input"] },
+            { number: 5, name: "P1.04", isClock: true, port: "P1", index: 4, type: "io", functions: ["ASO[0]", "AIN0", "Digital I/O", "TAMPC active shield 0 output", "Analog input"] },
+            { number: 6, name: "P1.05", isClock: false, port: "P1", index: 5, type: "io", functions: ["ASI[0]", "RADIO[6]", "AIN1", "Digital I/O", "TAMPC active shield 0 input", "Analog input"] },
+            { number: 7, name: "P1.06", isClock: false, port: "P1", index: 6, type: "io", functions: ["ASO[1]", "AIN2", "Digital I/O", "TAMPC active shield 1 output", "Analog input"] },
+            { number: 8, name: "P1.07", isClock: false, port: "P1", index: 7, type: "io", functions: ["ASI[1]", "AIN3", "Digital I/O", "TAMPC active shield 1 input", "Analog input"] },
+            { number: 9, name: "P1.08", isClock: true, port: "P1", index: 8, type: "io", functions: ["CLK16M", "EXTREF", "Digital I/O", "GRTC HF clock output", "External reference for SAADC"] },
+            { number: 10, name: "VDD", isClock: false, port: null, index: null, type: "vdd", functions: ["Power supply"] },
+            { number: 11, name: "P2.00", isClock: false, port: "P2", index: 0, type: "io", functions: ["Digital I/O", "SPIM DCX", "UARTE RXD", "QSPI D3"] },
+            { number: 12, name: "P2.01", isClock: true, port: "P2", index: 1, type: "io", functions: ["Digital I/O", "SPIM SCK", "SPIS SCK", "QSPI SCK"] },
+            { number: 13, name: "P2.02", isClock: false, port: "P2", index: 2, type: "io", functions: ["Digital I/O", "SPIM SDO", "SPIS SDO", "UARTE TXD", "QSPI D0", "Serial wire output (SWO)"] },
+            { number: 14, name: "P2.03", isClock: false, port: "P2", index: 3, type: "io", functions: ["Digital I/O", "QSPI D2"] },
+            { number: 15, name: "P2.04", isClock: false, port: "P2", index: 4, type: "io", functions: ["Digital I/O", "SPIM SDI", "SPIS SDI", "UARTE CTS", "QSPI D1"] },
+            { number: 16, name: "P2.05", isClock: false, port: "P2", index: 5, type: "io", functions: ["Digital I/O", "SPIM CS", "UARTE RTS", "QSPI CS"] },
+            { number: 17, name: "P2.06", isClock: true, port: "P2", index: 6, type: "io", functions: ["TRACECLK", "Digital I/O", "SPIM SCK", "SPIS SCK", "Trace clock"] },
+            { number: 18, name: "P2.07", isClock: false, port: "P2", index: 7, type: "io", functions: ["TRACEDATA[0]", "SWO", "Digital I/O", "Trace data", "Serial wire output (SWO)", "SPIM DCX", "UARTE RXD"] },
+            { number: 19, name: "P2.08", isClock: false, port: "P2", index: 8, type: "io", functions: ["TRACEDATA[1]", "Digital I/O", "Trace data", "SPIM SDO", "SPIS SDO", "UARTE TXD"] },
+            { number: 20, name: "P2.09", isClock: false, port: "P2", index: 9, type: "io", functions: ["TRACEDATA[2]", "Digital I/O", "Trace data", "SPIM SDI", "SPIS SDI", "UARTE CTS"] },
+            { number: 21, name: "P2.10", isClock: false, port: "P2", index: 10, type: "io", functions: ["TRACEDATA[3]", "Digital I/O", "Trace data", "SPIM CS", "UARTE RTS"] },
+            { number: 22, name: "VDD", isClock: false, port: null, index: null, type: "vdd", functions: ["Power supply"] },
+            { number: 23, name: "P0.00", isClock: false, port: "P0", index: 0, type: "io", functions: ["Digital I/O"] },
+            { number: 24, name: "P0.01", isClock: false, port: "P0", index: 1, type: "io", functions: ["Digital I/O"] },
+            { number: 25, name: "SWDIO", isClock: false, port: null, index: null, type: "debug", functions: ["Serial wire data. Bidirectional with standard-drive and on-chip pull-down."] },
+            { number: 26, name: "SWDCLK", isClock: false, port: null, index: null, type: "debug", functions: ["Serial wire clock. Input with on-chip pull-up."] },
+            { number: 27, name: "P0.02", isClock: false, port: "P0", index: 2, type: "io", functions: ["Digital I/O"] },
+            { number: 28, name: "P0.03", isClock: true, port: "P0", index: 3, type: "io", functions: ["GRTCPWM", "Digital I/O", "GRTC PWM output"] },
+            { number: 29, name: "P0.04", isClock: true, port: "P0", index: 4, type: "io", functions: ["GRTCLFCLKOUT", "Digital I/O", "GRTC LF clock output"] },
+            { number: 30, name: "nRESET", isClock: false, port: null, index: null, type: "reset", functions: ["Pin reset with on-chip pull-up"] },
+            { number: 31, name: "ANT", isClock: false, port: null, index: null, type: "rf", functions: ["Single ended radio antenna connection"] },
+            { number: 32, name: "VSS_PA", isClock: false, port: null, index: null, type: "vss", functions: ["Ground (radio supply)"] },
+            { number: 33, name: "DECRF", isClock: false, port: null, index: null, type: "power", functions: ["0.9 V regulator supply decoupling"] },
+            { number: 34, name: "XC1", isClock: false, port: null, index: null, type: "crystal", functions: ["Connection for 32 MHz crystal"] },
+            { number: 35, name: "XC2", isClock: false, port: null, index: null, type: "crystal", functions: ["Connection for 32 MHz crystal"] },
+            { number: 36, name: "VDD", isClock: false, port: null, index: null, type: "vdd", functions: ["Power supply"] },
+            { number: 37, name: "P1.09", isClock: false, port: "P1", index: 9, type: "io", functions: ["ASO[2]", "RADIO[0]", "Digital I/O", "TAMPC active shield 2 output", "RADIO DFEGPIO"] },
+            { number: 38, name: "P1.10", isClock: false, port: "P1", index: 10, type: "io", functions: ["ASI[2]", "RADIO[1]", "Digital I/O", "TAMPC active shield 2 input", "RADIO DFEGPIO"] },
+            { number: 39, name: "P1.11", isClock: true, port: "P1", index: 11, type: "io", functions: ["ASO[3]", "RADIO[2]", "AIN4", "Digital I/O", "TAMPC active shield 3 output", "RADIO DFEGPIO", "Analog input"] },
+            { number: 40, name: "P1.12", isClock: true, port: "P1", index: 12, type: "io", functions: ["ASI[3]", "RADIO[3]", "AIN5", "Digital I/O", "TAMPC active shield 3 input", "RADIO DFEGPIO", "Analog input"] },
+            { number: 41, name: "P1.13", isClock: false, port: "P1", index: 13, type: "io", functions: ["RADIO[4]", "AIN6", "Digital I/O", "RADIO DFEGPIO", "Analog input"] },
+            { number: 42, name: "P1.14", isClock: false, port: "P1", index: 14, type: "io", functions: ["RADIO[5]", "AIN7", "Digital I/O", "RADIO DFEGPIO", "Analog input"] },
+            { number: 43, name: "DECA", isClock: false, port: null, index: null, type: "power", functions: ["0.9 V regulator supply decoupling"] },
+            { number: 44, name: "VSS", isClock: false, port: null, index: null, type: "vss", functions: ["Ground"] },
+            { number: 45, name: "DECD", isClock: false, port: null, index: null, type: "power", functions: ["0.9 V regulator supply decoupling"] },
+            { number: 46, name: "DCC", isClock: false, port: null, index: null, type: "power", functions: ["DC/DC regulator output"] },
+            { number: 47, name: "VDD", isClock: false, port: null, index: null, type: "vdd", functions: ["Power supply"] },
+            { number: 48, name: "VDD", isClock: false, port: null, index: null, type: "vdd", functions: ["Power supply"] }
+        ];
+
+        // Peripheral requirements (which pins are required for specific peripherals)
+        const peripheralRequirements = {
+            "SPI": {
+                commonRequirements: {
+                    requiredFunctions: ["SPIM SCK", "SPIM SDO", "SPIM SDI", "SPIM CS"],
+                    clockPins: ["SPIM SCK"]
+                }
+            },
+            "I2C": {
+                commonRequirements: {
+                    requiredFunctions: ["TWIM SCL", "TWIM SDA"],
+                    clockPins: ["TWIM SCL"]
+                }
+            },
+            "UART": {
+                commonRequirements: {
+                    requiredFunctions: ["UARTE TXD", "UARTE RXD"],
+                    clockPins: []
+                }
+            },
+            "PDM": {
+                commonRequirements: {
+                    requiredFunctions: ["PDM CLK", "PDM DIN"],
+                    clockPins: ["PDM CLK"]
+                }
+            },
+            "PWM": {
+                commonRequirements: {
+                    requiredFunctions: [],
+                    clockPins: []
+                }
+            },
+            "I2S": {
+                commonRequirements: {
+                    requiredFunctions: ["I2S SCK", "I2S LRCK", "I2S SDIN"],
+                    clockPins: ["I2S SCK", "I2S MCK"]
+                }
+            },
+            "NFCT": {
+                specificPins: ["P1.02", "P1.03"],
+                clockPins: []
+            },
+            "SAADC": {
+                specificPins: ["P1.04", "P1.05", "P1.06", "P1.07", "P1.11", "P1.12", "P1.13", "P1.14"],
+                clockPins: []
+            },
+            "GRTC": {
+                specificPins: ["P0.03", "P0.04", "P1.08"],
+                clockPins: []
+            }
+        };
