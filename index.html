@@ -619,10 +619,20 @@
         // Populate peripheral lists in each tab
         function populatePeripheralLists() {
             for (const category in peripherals) {
-                const listId = category.toLowerCase() + '-list';
+                // Convert category to lowercase and handle special case for "Others"
+                let listId;
+                if (category === "Others") {
+                    listId = "other-list";
+                } else {
+                    listId = category.toLowerCase() + '-list';
+                }
+                
                 const listElement = document.getElementById(listId);
                 
                 if (listElement) {
+                    // Clear any existing content
+                    listElement.innerHTML = '';
+                    
                     peripherals[category].forEach(peripheral => {
                         const item = document.createElement('div');
                         item.className = 'peripheral-item';
@@ -642,6 +652,8 @@
                         
                         listElement.appendChild(item);
                     });
+                } else {
+                    console.error(`Element with ID "${listId}" not found for category "${category}"`);
                 }
             }
         }
