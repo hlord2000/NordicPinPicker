@@ -422,6 +422,25 @@
     </div>
     
     <script>
+        // Tab functionality
+        function openTab(evt, tabName) {
+            // Hide all tab content
+            const tabcontent = document.getElementsByClassName("tabcontent");
+            for (let i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            
+            // Remove "active" class from all tab buttons
+            const tablinks = document.getElementsByClassName("tablinks");
+            for (let i = 0; i < tablinks.length; i++) {
+                tablinks[i].className = tablinks[i].className.replace(" active", "");
+            }
+            
+            // Show the current tab and add "active" class to the button that opened the tab
+            document.getElementById(tabName).style.display = "block";
+            evt.currentTarget.className += " active";
+        }
+        
         // Data structures
         const peripherals = {
             "SPI": [
@@ -564,3 +583,606 @@
                 clockPins: []
             }
         };
+        
+        // Global state
+        let selectedPeripherals = [];
+        let usedPins = {};
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Populate peripheral lists
+            populatePeripheralLists();
+            
+            // Create pin layout
+            createPinLayout();
+            
+            // Set up event listeners
+            document.getElementById('clearAllBtn').addEventListener('click', clearAllPeripherals);
+            document.getElementById('exportBtn').addEventListener('click', exportConfiguration);
+            document.getElementById('searchPeripherals').addEventListener('input', filterPeripherals);
+        });
+        
+        // Populate peripheral lists in each tab
+        function populatePeripheralLists() {
+            for (const category in peripherals) {
+                const listId = category.toLowerCase() + '-list';
+                const listElement = document.getElementById(listId);
+                
+                if (listElement) {
+                    peripherals[category].forEach(peripheral => {
+                        const item = document.createElement('div');
+                        item.className = 'peripheral-item';
+                        item.dataset.id = peripheral.id;
+                        item.dataset.category = category;
+                        
+                        item.innerHTML = `
+                            <span>${peripheral.id}</span>
+                            <span>${peripheral.port}</span>
+                        `;
+                        
+                        item.addEventListener('click', function() {
+                            if (!this.classList.contains('disabled')) {
+                                selectPeripheral(peripheral, category);
+                            }
+                        });
+                        
+                        listElement.appendChild(item);
+                    });
+                }
+            }
+        }
+        
+        // Create pin layout for the chip
+        function createPinLayout() {
+            const leftPins = document.querySelector('.left-pins');
+            const rightPins = document.querySelector('.right-pins');
+            const topPins = document.querySelector('.top-pins');
+            const bottomPins = document.querySelector('.bottom-pins');
+            
+            // Clear existing pins
+            leftPins.innerHTML = '';
+            rightPins.innerHTML = '';
+            topPins.innerHTML = '';
+            bottomPins.innerHTML = '';
+            
+            // Calculate positions
+            const chipSize = 400;
+            const pinSize = 20;
+            const pinSpacing = (chipSize - 2 * pinSize) / 11; // 12 pins per side
+            
+            // Create pins for each side
+            for (let i = 0; i < 12; i++) {
+                // Left side pins (1-12)
+                if (i < 12) {
+                    const pin = createPinElement(i + 1, pinSize + i * pinSpacing);
+                    leftPins.appendChild(pin);
+                }
+                
+                // Bottom side pins (13-24)
+                if (i < 12) {
+                    const pin = createPinElement(i + 13, pinSize + i * pinSpacing);
+                    bottomPins.appendChild(pin);
+                }
+                
+                // Right side pins (25-36)
+                if (i < 12) {
+                    const pin = createPinElement(i + 25, chipSize - pinSize - i * pinSpacing);
+                    rightPins.appendChild(pin);
+                }
+                
+                // Top side pins (37-48)
+                if (i < 12) {
+                    const pin = createPinElement(i + 37, chipSize - pinSize - i * pinSpacing);
+                    topPins.appendChild(pin);
+                }
+            }
+        }
+        
+        // Create a pin element
+        function createPinElement(pinNumber, position) {
+            const pinData = getPinDataByNumber(pinNumber);
+            const pin = document.createElement('div');
+            pin.className = 'pin';
+            pin.dataset.number = pinNumber;
+            pin.dataset.name = pinData.name;
+            pin.textContent = pinNumber;
+            
+            // Set position based on which side the pin is on
+            if (pinNumber >= 1 && pinNumber <= 12) {
+                // Left side
+                pin.style.top = position + 'px';
+            } else if (pinNumber >= 13 && pinNumber <= 24) {
+                // Bottom side
+                pin.style.left = position + 'px';
+            } else if (pinNumber >= 25 && pinNumber <= 36) {
+                // Right side
+                pin.style.top = position + 'px';
+            } else {
+                // Top side
+                pin.style.left = position + 'px';
+            }
+            
+            // Add special classes based on pin type
+            if (pinData.type === 'vdd' || pinData.type === 'vss' || pinData.type === 'debug') {
+                pin.classList.add(pinData.type);
+            } else if (pinData.isClock) {
+                pin.classList.add('clock');
+            }
+            
+            // Add click event to show pin details
+            pin.addEventListener('click', function() {
+                showPinDetails(pinData);
+            });
+            
+            return pin;
+        }
+        
+        // Get pin data by pin number
+        function getPinDataByNumber(number) {
+            return pinData.find(pin => pin.number === number) || { name: 'Unknown', type: 'unknown' };
+        }
+        
+        // Get pin data by pin name
+        function getPinDataByName(name) {
+            return pinData.find(pin => pin.name === name) || null;
+        }
+        
+        // Show pin details in the details panel
+        function showPinDetails(pin) {
+            const detailsElement = document.getElementById('pinDetails');
+            
+            let usedBy = '';
+            if (usedPins[pin.name]) {
+                usedBy = `<p><strong>Used by:</strong> ${usedPins[pin.name].peripheral}</p>`;
+            }
+            
+            let functionsHtml = '';
+            if (pin.functions && pin.functions.length > 0) {
+                functionsHtml = `
+                    <p><strong>Functions:</strong></p>
+                    <ul>
+                        ${pin.functions.map(func => `<li>${func}</li>`).join('')}
+                    </ul>
+                `;
+            }
+            
+            detailsElement.innerHTML = `
+                <h3>${pin.name} (Pin ${pin.number})</h3>
+                <p><strong>Type:</strong> ${pin.type.toUpperCase()}</p>
+                ${pin.isClock ? '<p><strong>Clock capable</strong></p>' : ''}
+                ${usedBy}
+                ${functionsHtml}
+            `;
+        }
+        
+        // Select a peripheral and assign pins
+        function selectPeripheral(peripheral, category) {
+            // Check if already selected
+            if (selectedPeripherals.some(p => p.id === peripheral.id)) {
+                return;
+            }
+            
+            // Add to selected peripherals
+            selectedPeripherals.push({
+                id: peripheral.id,
+                category: category,
+                peripheral: peripheral
+            });
+            
+            // Assign pins based on peripheral type
+            assignPinsForPeripheral(peripheral, category);
+            
+            // Update the UI
+            updateSelectedPeripheralsList();
+            updatePinDisplay();
+            
+            // Disable the peripheral in the list
+            const peripheralElement = document.querySelector(`.peripheral-item[data-id="${peripheral.id}"]`);
+            if (peripheralElement) {
+                peripheralElement.classList.add('selected');
+            }
+        }
+        
+        // Assign pins for a peripheral based on its requirements
+        function assignPinsForPeripheral(peripheral, category) {
+            // Different assignment logic based on peripheral type
+            if (category === 'SPI') {
+                assignSPIPins(peripheral);
+            } else if (category === 'I2C') {
+                assignI2CPins(peripheral);
+            } else if (category === 'UART') {
+                assignUARTPins(peripheral);
+            } else if (category === 'Others') {
+                // Handle special cases
+                if (peripheral.id.includes('NFCT')) {
+                    assignSpecificPins(peripheral, peripheralRequirements.NFCT.specificPins);
+                } else if (peripheral.id.includes('SAADC')) {
+                    // For SAADC, we don't assign all pins, just mark them as available
+                    markPinsAsAvailable(peripheral, peripheralRequirements.SAADC.specificPins);
+                } else if (peripheral.id.includes('GRTC')) {
+                    assignSpecificPins(peripheral, peripheralRequirements.GRTC.specificPins);
+                } else if (peripheral.id.includes('PDM')) {
+                    assignGenericPins(peripheral, 'PDM');
+                } else if (peripheral.id.includes('PWM')) {
+                    // PWM can use any pin, so we'll just assign one
+                    assignGenericPins(peripheral, 'PWM');
+                } else if (peripheral.id.includes('I2S')) {
+                    assignGenericPins(peripheral, 'I2S');
+                } else if (peripheral.id.includes('QDEC')) {
+                    // QDEC needs 3 pins
+                    assignGenericPins(peripheral, 'QDEC', 3);
+                } else if (peripheral.id.includes('GPIOTE')) {
+                    // GPIOTE doesn't need specific pins
+                    // Just mark the peripheral as selected
+                }
+            }
+        }
+        
+        // Assign SPI pins
+        function assignSPIPins(peripheral) {
+            const portMatch = peripheral.port.match(/Port (\d+)/);
+            const port = portMatch ? `P${portMatch[1]}` : null;
+            
+            // Find available pins for this port
+            const availablePins = pinData.filter(pin => 
+                pin.port === port && 
+                pin.type === 'io' && 
+                !usedPins[pin.name]
+            );
+            
+            // Find a clock pin for SCK
+            const clockPin = availablePins.find(pin => pin.isClock);
+            if (clockPin) {
+                usedPins[clockPin.name] = { 
+                    peripheral: peripheral.id, 
+                    function: 'SPIM SCK',
+                    required: true
+                };
+                
+                // Find 3 more pins for MOSI, MISO, CS
+                const otherPins = availablePins.filter(pin => pin.name !== clockPin.name).slice(0, 3);
+                if (otherPins.length >= 3) {
+                    usedPins[otherPins[0].name] = { 
+                        peripheral: peripheral.id, 
+                        function: 'SPIM SDO (MOSI)',
+                        required: true
+                    };
+                    usedPins[otherPins[1].name] = { 
+                        peripheral: peripheral.id, 
+                        function: 'SPIM SDI (MISO)',
+                        required: true
+                    };
+                    usedPins[otherPins[2].name] = { 
+                        peripheral: peripheral.id, 
+                        function: 'SPIM CS',
+                        required: true
+                    };
+                }
+            }
+        }
+        
+        // Assign I2C pins
+        function assignI2CPins(peripheral) {
+            const portMatch = peripheral.port.match(/Port (\d+)/);
+            const port = portMatch ? `P${portMatch[1]}` : null;
+            
+            // Find available pins for this port
+            const availablePins = pinData.filter(pin => 
+                pin.port === port && 
+                pin.type === 'io' && 
+                !usedPins[pin.name]
+            );
+            
+            // Find a clock pin for SCL
+            const clockPin = availablePins.find(pin => pin.isClock);
+            if (clockPin) {
+                usedPins[clockPin.name] = { 
+                    peripheral: peripheral.id, 
+                    function: 'TWIM SCL',
+                    required: true
+                };
+                
+                // Find 1 more pin for SDA
+                const otherPin = availablePins.find(pin => pin.name !== clockPin.name);
+                if (otherPin) {
+                    usedPins[otherPin.name] = { 
+                        peripheral: peripheral.id, 
+                        function: 'TWIM SDA',
+                        required: true
+                    };
+                }
+            }
+        }
+        
+        // Assign UART pins
+        function assignUARTPins(peripheral) {
+            const portMatch = peripheral.port.match(/Port (\d+)/);
+            const port = portMatch ? `P${portMatch[1]}` : null;
+            
+            // Find available pins for this port
+            const availablePins = pinData.filter(pin => 
+                pin.port === port && 
+                pin.type === 'io' && 
+                !usedPins[pin.name]
+            );
+            
+            // Need at least 2 pins for TX and RX
+            if (availablePins.length >= 2) {
+                usedPins[availablePins[0].name] = { 
+                    peripheral: peripheral.id, 
+                    function: 'UARTE TXD',
+                    required: true
+                };
+                usedPins[availablePins[1].name] = { 
+                    peripheral: peripheral.id, 
+                    function: 'UARTE RXD',
+                    required: true
+                };
+                
+                // If we have more pins, assign CTS and RTS
+                if (availablePins.length >= 4) {
+                    usedPins[availablePins[2].name] = { 
+                        peripheral: peripheral.id, 
+                        function: 'UARTE CTS',
+                        required: false
+                    };
+                    usedPins[availablePins[3].name] = { 
+                        peripheral: peripheral.id, 
+                        function: 'UARTE RTS',
+                        required: false
+                    };
+                }
+            }
+        }
+        
+        // Assign specific pins for peripherals that require exact pins
+        function assignSpecificPins(peripheral, pinNames) {
+            pinNames.forEach(pinName => {
+                usedPins[pinName] = { 
+                    peripheral: peripheral.id, 
+                    function: `${peripheral.id} required pin`,
+                    required: true
+                };
+            });
+        }
+        
+        // Mark pins as available for a peripheral without assigning them
+        function markPinsAsAvailable(peripheral, pinNames) {
+            // We don't actually assign these pins, just note that they're available
+            // for this peripheral if needed
+        }
+        
+        // Assign generic pins for peripherals without specific requirements
+        function assignGenericPins(peripheral, type, count = 2) {
+            const portMatch = peripheral.port.match(/Port (\d+)/);
+            const port = portMatch ? `P${portMatch[1]}` : null;
+            
+            // Find available pins for this port
+            const availablePins = pinData.filter(pin => 
+                pin.port === port && 
+                pin.type === 'io' && 
+                !usedPins[pin.name]
+            );
+            
+            // Assign pins based on type
+            if (type === 'PDM' && availablePins.length >= 2) {
+                // PDM needs a clock pin for CLK
+                const clockPin = availablePins.find(pin => pin.isClock);
+                if (clockPin) {
+                    usedPins[clockPin.name] = { 
+                        peripheral: peripheral.id, 
+                        function: 'PDM CLK',
+                        required: true
+                    };
+                    
+                    // Find another pin for DIN
+                    const dataPin = availablePins.find(pin => pin.name !== clockPin.name);
+                    if (dataPin) {
+                        usedPins[dataPin.name] = { 
+                            peripheral: peripheral.id, 
+                            function: 'PDM DIN',
+                            required: true
+                        };
+                    }
+                }
+            } else if (type === 'I2S' && availablePins.length >= 3) {
+                // I2S needs clock pins for SCK and MCK
+                const clockPins = availablePins.filter(pin => pin.isClock).slice(0, 2);
+                if (clockPins.length >= 2) {
+                    usedPins[clockPins[0].name] = { 
+                        peripheral: peripheral.id, 
+                        function: 'I2S SCK',
+                        required: true
+                    };
+                    usedPins[clockPins[1].name] = { 
+                        peripheral: peripheral.id, 
+                        function: 'I2S MCK',
+                        required: true
+                    };
+                    
+                    // Find more pins for LRCK and SDIN
+                    const otherPins = availablePins.filter(pin => 
+                        !clockPins.some(cp => cp.name === pin.name)
+                    ).slice(0, 2);
+                    
+                    if (otherPins.length >= 2) {
+                        usedPins[otherPins[0].name] = { 
+                            peripheral: peripheral.id, 
+                            function: 'I2S LRCK',
+                            required: true
+                        };
+                        usedPins[otherPins[1].name] = { 
+                            peripheral: peripheral.id, 
+                            function: 'I2S SDIN',
+                            required: true
+                        };
+                    }
+                }
+            } else if (availablePins.length >= count) {
+                // Generic assignment for other peripherals
+                for (let i = 0; i < count; i++) {
+                    usedPins[availablePins[i].name] = { 
+                        peripheral: peripheral.id, 
+                        function: `${type} pin ${i+1}`,
+                        required: true
+                    };
+                }
+            }
+        }
+        
+        // Update the display of pins on the chip
+        function updatePinDisplay() {
+            const pins = document.querySelectorAll('.pin');
+            
+            pins.forEach(pin => {
+                const pinName = pin.dataset.name;
+                
+                // Reset classes
+                pin.classList.remove('used', 'required');
+                
+                // Add appropriate classes based on pin usage
+                if (usedPins[pinName]) {
+                    pin.classList.add('used');
+                    if (usedPins[pinName].required) {
+                        pin.classList.add('required');
+                    }
+                }
+            });
+        }
+        
+        // Update the list of selected peripherals
+        function updateSelectedPeripheralsList() {
+            const selectedList = document.getElementById('selectedList');
+            
+            // Clear the list
+            selectedList.innerHTML = '';
+            
+            if (selectedPeripherals.length === 0) {
+                selectedList.innerHTML = '<li class="empty-message">No peripherals selected yet.</li>';
+                return;
+            }
+            
+            // Add each selected peripheral to the list
+            selectedPeripherals.forEach(item => {
+                const listItem = document.createElement('li');
+                listItem.className = 'selected-item';
+                
+                const peripheral = item.peripheral;
+                const usedPinsList = Object.entries(usedPins)
+                    .filter(([_, data]) => data.peripheral === peripheral.id)
+                    .map(([pinName, data]) => `${pinName} (${data.function})`)
+                    .join(', ');
+                
+                listItem.innerHTML = `
+                    <div>
+                        <strong>${peripheral.id}</strong>
+                        <div>Pins: ${usedPinsList || 'None assigned'}</div>
+                    </div>
+                    <button class="remove-btn" data-id="${peripheral.id}">Remove</button>
+                `;
+                
+                selectedList.appendChild(listItem);
+            });
+            
+            // Add event listeners to remove buttons
+            document.querySelectorAll('.remove-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const peripheralId = this.dataset.id;
+                    removePeripheral(peripheralId);
+                });
+            });
+        }
+        
+        // Remove a peripheral from the selected list
+        function removePeripheral(peripheralId) {
+            // Find the peripheral in the selected list
+            const index = selectedPeripherals.findIndex(p => p.id === peripheralId);
+            if (index === -1) return;
+            
+            // Remove it from the selected list
+            selectedPeripherals.splice(index, 1);
+            
+            // Remove its pin assignments
+            for (const pinName in usedPins) {
+                if (usedPins[pinName].peripheral === peripheralId) {
+                    delete usedPins[pinName];
+                }
+            }
+            
+            // Update the UI
+            updateSelectedPeripheralsList();
+            updatePinDisplay();
+            
+            // Re-enable the peripheral in the list
+            const peripheralElement = document.querySelector(`.peripheral-item[data-id="${peripheralId}"]`);
+            if (peripheralElement) {
+                peripheralElement.classList.remove('selected');
+            }
+        }
+        
+        // Clear all selected peripherals
+        function clearAllPeripherals() {
+            selectedPeripherals = [];
+            usedPins = {};
+            
+            // Update the UI
+            updateSelectedPeripheralsList();
+            updatePinDisplay();
+            
+            // Re-enable all peripherals in the list
+            document.querySelectorAll('.peripheral-item.selected').forEach(item => {
+                item.classList.remove('selected');
+            });
+        }
+        
+        // Export the current configuration
+        function exportConfiguration() {
+            const config = {
+                peripherals: selectedPeripherals.map(item => {
+                    const peripheral = item.peripheral;
+                    const pins = Object.entries(usedPins)
+                        .filter(([_, data]) => data.peripheral === peripheral.id)
+                        .map(([pinName, data]) => ({
+                            pin: pinName,
+                            function: data.function,
+                            required: data.required
+                        }));
+                    
+                    return {
+                        id: peripheral.id,
+                        category: item.category,
+                        address: peripheral.address,
+                        pins: pins
+                    };
+                }),
+                pinAssignments: Object.entries(usedPins).map(([pinName, data]) => ({
+                    pin: pinName,
+                    peripheral: data.peripheral,
+                    function: data.function,
+                    required: data.required
+                }))
+            };
+            
+            // Create a downloadable JSON file
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(config, null, 2));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", "nrf_pin_config.json");
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        }
+        
+        // Filter peripherals based on search input
+        function filterPeripherals() {
+            const searchText = document.getElementById('searchPeripherals').value.toLowerCase();
+            
+            document.querySelectorAll('.peripheral-item').forEach(item => {
+                const peripheralId = item.dataset.id.toLowerCase();
+                if (peripheralId.includes(searchText)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
