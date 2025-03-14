@@ -7,6 +7,8 @@
     <script>
         // Tab functionality
         function openTab(evt, tabName) {
+            console.log("Opening tab:", tabName);
+            
             // Hide all tab content
             const tabcontent = document.getElementsByClassName("tabcontent");
             for (let i = 0; i < tabcontent.length; i++) {
@@ -20,8 +22,13 @@
             }
             
             // Show the current tab and add "active" class to the button that opened the tab
-            document.getElementById(tabName).style.display = "block";
-            evt.currentTarget.className += " active";
+            const tabElement = document.getElementById(tabName);
+            if (tabElement) {
+                tabElement.style.display = "block";
+                evt.currentTarget.className += " active";
+            } else {
+                console.error(`Tab element with ID "${tabName}" not found`);
+            }
         }
     </script>
     <style>
@@ -591,6 +598,8 @@
         
         // Initialize the application
         document.addEventListener('DOMContentLoaded', function() {
+            console.log("Initializing NRF Pin Planner...");
+            
             // Populate peripheral lists
             populatePeripheralLists();
             
@@ -601,6 +610,10 @@
             document.getElementById('clearAllBtn').addEventListener('click', clearAllPeripherals);
             document.getElementById('exportBtn').addEventListener('click', exportConfiguration);
             document.getElementById('searchPeripherals').addEventListener('input', filterPeripherals);
+            
+            // Log that initialization is complete
+            console.log("Initialization complete. Peripherals loaded:", 
+                Object.keys(peripherals).map(cat => `${cat}: ${peripherals[cat].length}`));
         });
         
         // Populate peripheral lists in each tab
